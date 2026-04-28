@@ -57,7 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             const token = localStorage.getItem('token');
             if (!token) return;
             try {
-                const res = await fetch('http://localhost:5000/api/settings', {
+                const res = await fetch(`${API_URL}/settings`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {

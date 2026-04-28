@@ -4,11 +4,7 @@
 
 import axios from 'axios';
 
-const BACKEND_PORT = '5000';
-
-export const API_URL = typeof window !== 'undefined'
-    ? `http://${window.location.hostname || 'localhost'}:${BACKEND_PORT}/api`
-    : `http://localhost:${BACKEND_PORT}/api`;
+export const API_URL = 'https://smartbiz-pro-n6ic.onrender.com/api';
 
 axios.interceptors.request.use(
     (config) => {
