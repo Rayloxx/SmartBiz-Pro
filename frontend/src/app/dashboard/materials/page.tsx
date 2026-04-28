@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, Search, Truck, Edit, Scale, Activity, X, Plus } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:5000/api';
+import { API_URL } from '@/config';
 
 export default function MaterialsPage() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -20,7 +19,8 @@ export default function MaterialsPage() {
     const [vendor, setVendor] = useState('');
     const [quantity, setQuantity] = useState('');
 
-    // Add Material Form State
+    // Add/Edit Material Form State
+    const [editId, setEditId] = useState('');
     const [newName, setNewName] = useState('');
     const [newUnit, setNewUnit] = useState('Liters');
     const [newCost, setNewCost] = useState('');
@@ -65,22 +65,41 @@ export default function MaterialsPage() {
         }
     };
 
+    const handleEditClick = (item: any) => {
+        setEditId(item.id.toString());
+        setNewName(item.name);
+        setNewUnit(item.unit);
+        setNewCost(item.cost_per_unit || '0');
+        setNewReorder(item.reorder_level || '0');
+        setIsAddModalOpen(true);
+    };
+
     const handleAddMaterial = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await axios.post(`${API_URL}/inventory/materials`, {
+            const payload = {
                 name: newName,
                 unit: newUnit,
-                cost_per_unit: newCost,
-                stock_quantity: 0,
-                reorder_level: newReorder
-            });
-            toast.success('New raw material added.');
+                cost_per_unit: newCost || 0,
+                reorder_level: newReorder || 0,
+                stock_quantity: 0 // Default for POST
+            };
+
+            if (editId) {
+                const existing = materials.find(m => m.id.toString() === editId);
+                payload.stock_quantity = existing ? existing.stock_quantity : 0;
+                await axios.put(`${API_URL}/inventory/materials/${editId}`, payload);
+                toast.success('Material details updated successfully.');
+            } else {
+                await axios.post(`${API_URL}/inventory/materials`, payload);
+                toast.success('New raw material added.');
+            }
+            
             fetchMaterials();
             setIsAddModalOpen(false);
-            setNewName(''); setNewCost(''); setNewReorder('');
-        } catch (err) {
-            toast.error('Failed to add new material');
+            setEditId(''); setNewName(''); setNewCost(''); setNewReorder(''); setNewUnit('Liters');
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to save material');
         }
     };
 
@@ -108,7 +127,7 @@ export default function MaterialsPage() {
 
                 <div className="flex gap-2">
                     <button
-                        onClick={() => setIsAddModalOpen(true)}
+                        onClick={() => { setEditId(''); setNewName(''); setNewCost(''); setNewReorder(''); setNewUnit('Liters'); setIsAddModalOpen(true); }}
                         className="flex items-center gap-2 px-5 py-3 bg-white border border-indigo-200 text-indigo-600 rounded-xl font-semibold shadow-sm hover:bg-indigo-50 transition-all hover:-translate-y-0.5"
                     >
                         <Plus size={20} />
@@ -206,7 +225,7 @@ export default function MaterialsPage() {
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center justify-end">
-                                                        <button onClick={() => toast.info('Edit details active.')} className="p-2 text-gray-300 hover:text-indigo-600 group-hover:bg-indigo-50 rounded-lg transition-colors"><Edit size={16} /></button>
+                                                        <button onClick={() => handleEditClick(item)} className="p-2 text-gray-300 hover:text-indigo-600 group-hover:bg-indigo-50 rounded-lg transition-colors"><Edit size={16} /></button>
                                                     </div>
                                                 </td>
                                             </motion.tr>
@@ -234,7 +253,7 @@ export default function MaterialsPage() {
                                 className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl relative"
                             >
                                 <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 text-gray-400 hover:text-gray-800 transition-colors" type="button"><X size={24} /></button>
-                                <h2 className="text-2xl font-bold font-poppins text-gray-900 mb-6 flex items-center gap-2">New Raw Material</h2>
+                                <h2 className="text-2xl font-bold font-poppins text-gray-900 mb-6 flex items-center gap-2">{editId ? 'Edit Raw Material' : 'New Raw Material'}</h2>
                                 <form onSubmit={handleAddMaterial} className="space-y-4">
                                     <div className="space-y-1">
                                         <label className="text-sm font-semibold text-gray-700">Name</label>
@@ -254,7 +273,9 @@ export default function MaterialsPage() {
                                         <label className="text-sm font-semibold text-gray-700">Minimum Reorder Level</label>
                                         <input required value={newReorder} onChange={e => setNewReorder(e.target.value)} type="number" className="w-full p-3 bg-gray-50 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono" />
                                     </div>
-                                    <motion.button whileTap={{ scale: 0.98 }} type="submit" className="w-full py-4 mt-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Save Material</motion.button>
+                                    <motion.button whileTap={{ scale: 0.98 }} type="submit" className="w-full py-4 mt-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">
+                                        {editId ? 'Save Changes' : 'Save Material'}
+                                    </motion.button>
                                 </form>
                             </motion.div>
                         </motion.div>

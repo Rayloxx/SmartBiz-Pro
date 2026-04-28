@@ -10,6 +10,9 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const productionRoutes = require('./routes/productionRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const usersRoutes = require('./routes/usersRoutes');
+const integrationsRoutes = require('./routes/integrationsRoutes');
+const { requireAuth, authorize } = require('./middleware/authMiddleware');
 
 const app = express();
 
@@ -20,12 +23,19 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/expenses', expensesRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/production', productionRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/settings', settingsRoutes);
+app.use('/api/sales', requireAuth, authorize(['owner', 'admin', 'manager', 'cashier']), salesRoutes);
+app.use('/api/expenses', requireAuth, authorize(['owner', 'admin', 'manager']), expensesRoutes);
+app.use('/api/inventory', requireAuth, authorize(['owner', 'admin', 'manager', 'inventory_staff', 'inventory', 'cashier']), inventoryRoutes);
+app.use('/api/production', requireAuth, authorize(['owner', 'admin', 'manager', 'production_staff']), productionRoutes);
+app.use('/api/dashboard', requireAuth, authorize(['owner', 'admin', 'manager', 'cashier']), dashboardRoutes);
+app.use('/api/settings', requireAuth, settingsRoutes);
+app.use('/api/users', requireAuth, authorize(['owner', 'admin']), usersRoutes);
+app.use('/api/integrations', requireAuth, integrationsRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -36,5 +46,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`SmartBiz Pro Server running on port ${PORT}`);
 });

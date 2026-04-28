@@ -6,8 +6,7 @@ import { Receipt, Search, Plus, Calendar, Filter, X } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, PieChart, Pie } from 'recharts';
 import { toast, Toaster } from 'sonner';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:5000/api';
+import { API_URL } from '@/config';
 
 const expenseCategories = [
     { name: 'Rent', color: '#3B82F6' },

@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Factory, Plus, Archive, History, ArrowRight, Settings2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:5000/api';
+import { API_URL } from '@/config';
 
 export default function ProductionPage() {
     const [activeTab, setActiveTab] = useState('New Batch');

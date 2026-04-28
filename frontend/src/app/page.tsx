@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import { TrendingUp, Lock, User, UserPlus } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:5000/api';
+import { API_URL } from '@/config';
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -30,7 +30,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       } else {
         // Register
-        await axios.post(`${API_URL}/auth/register`, { username, password, role: 'admin' });
+        await axios.post(`${API_URL}/auth/register`, { username, password, role: 'owner', business_name: businessName });
         toast.success("Account created! Please sign in.");
         setIsLogin(true);
       }
@@ -114,6 +114,8 @@ export default function LoginPage() {
                 </div>
                 <input
                   type="text"
+                  value={businessName}
+                  onChange={e => setBusinessName(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:bg-white/20 transition-all font-inter"
                   placeholder="My Startup Ltd"
                 />

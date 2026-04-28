@@ -2,25 +2,30 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Box, Search, Plus, Edit, Trash2, ArrowUpDown, AlertCircle, X } from 'lucide-react';
+import { Box, Search, Plus, Edit, Trash2, ArrowUpDown, AlertCircle, X, Save } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import axios from 'axios';
+import { API_URL } from '@/config';
 
-const API_URL = 'http://localhost:5000/api';
+const categories = ['Dairy', 'Hardware', 'Retail', 'Agro-processing', 'Other'];
 
 export default function InventoryPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [inventory, setInventory] = useState<any[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [editingProduct, setEditingProduct] = useState<any>(null);
+    const [sortField, setSortField] = useState<'name' | 'stock_quantity' | 'price'>('name');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-    // Form State
+    // Add Form State
     const [formName, setFormName] = useState('');
     const [formSku, setFormSku] = useState('');
     const [formCat, setFormCat] = useState('Dairy');
-    const [formPrice, setFormPrice] = useState(0);
-    const [formCost, setFormCost] = useState(0);
-    const [formStock, setFormStock] = useState(0);
+    const [formPrice, setFormPrice] = useState<number | ''>(0);
+    const [formCost, setFormCost] = useState<number | ''>(0);
+    const [formStock, setFormStock] = useState<number | ''>(0);
 
     const fetchInventory = async () => {
         try {
@@ -37,16 +42,35 @@ export default function InventoryPage() {
         fetchInventory();
     }, []);
 
-    const filteredInventory = inventory.filter(p =>
-        p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const handleSort = (field: 'name' | 'stock_quantity' | 'price') => {
+        if (sortField === field) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDir('asc');
+        }
+    };
 
-    const handleDelete = async (id: number) => {
+    const filteredInventory = [...inventory]
+        .filter(p =>
+            p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .sort((a, b) => {
+            let aVal = a[sortField], bVal = b[sortField];
+            if (sortField !== 'name') { aVal = Number(aVal); bVal = Number(bVal); }
+            if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    const handleDelete = async (id: number, name: string) => {
+        if (!window.confirm(`Delete "${name}" from inventory? This cannot be undone.`)) return;
         try {
             await axios.delete(`${API_URL}/inventory/products/${id}`);
             setInventory(inventory.filter(i => i.id !== id));
-            toast.success('Product deleted from inventory');
+            toast.success('Product removed from inventory');
         } catch (err) {
             toast.error('Failed to delete product');
         }
@@ -55,29 +79,51 @@ export default function InventoryPage() {
     const handleAddProduct = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formName || !formSku) return;
-
         const payload = {
-            name: formName,
-            sku: formSku,
-            category: formCat,
-            price: formPrice,
-            cost: formCost,
-            stock_quantity: formStock
+            name: formName, sku: formSku,
+            category: formCat, price: formPrice,
+            cost: formCost, stock_quantity: formStock
         };
-
         try {
             const res = await axios.post(`${API_URL}/inventory/products`, payload);
             setInventory([res.data, ...inventory]);
-            toast.success(`${formName} added to inventory successfully!`);
-            setIsModalOpen(false);
-
-            // Reset form
+            toast.success(`${formName} added to inventory!`);
+            setIsAddModalOpen(false);
             setFormName(''); setFormSku(''); setFormCat('Dairy');
             setFormPrice(0); setFormCost(0); setFormStock(0);
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Failed to add product');
         }
     };
+
+    const openEditModal = (product: any) => {
+        setEditingProduct({ ...product });
+        setIsEditModalOpen(true);
+    };
+
+    const handleEditProduct = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingProduct) return;
+        try {
+            const res = await axios.put(`${API_URL}/inventory/products/${editingProduct.id}`, {
+                name: editingProduct.name,
+                sku: editingProduct.sku,
+                category: editingProduct.category,
+                price: editingProduct.price,
+                cost: editingProduct.cost,
+                stock_quantity: editingProduct.stock_quantity
+            });
+            setInventory(inventory.map(i => i.id === editingProduct.id ? res.data : i));
+            toast.success('Product updated successfully!');
+            setIsEditModalOpen(false);
+            setEditingProduct(null);
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Failed to update product');
+        }
+    };
+
+    const totalValue = inventory.reduce((acc, i) => acc + (Number(i.price) * i.stock_quantity), 0);
+    const lowStockCount = inventory.filter(i => i.stock_quantity <= 20).length;
 
     return (
         <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8 font-inter relative">
@@ -97,10 +143,9 @@ export default function InventoryPage() {
                     </h1>
                     <p className="text-gray-500 text-sm mt-1 ml-15">Manage your retail-ready catalog and stock levels.</p>
                 </div>
-
                 <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => setIsAddModalOpen(true)}
                         className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white rounded-xl font-semibold shadow-md transition-colors"
                     >
                         <Plus size={18} /> Add Product
@@ -115,7 +160,7 @@ export default function InventoryPage() {
                 className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
             >
                 <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/30">
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 flex-wrap">
                         <div className="bg-white border border-blue-100 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-sm">
                             <div className="bg-blue-50 p-2 rounded-xl">
                                 <Box size={20} className="text-blue-500" />
@@ -123,27 +168,25 @@ export default function InventoryPage() {
                             <div>
                                 <p className="text-xs text-blue-800 font-semibold uppercase tracking-wider">Total Value</p>
                                 <p className="font-mono text-xl font-bold text-blue-900">
-                                    KSh {inventory.reduce((acc, i) => acc + (Number(i.price) * i.stock_quantity), 0).toLocaleString()}
+                                    KSh {totalValue.toLocaleString()}
                                 </p>
                             </div>
                         </div>
-
                         <div className="bg-white border border-red-100 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-sm">
                             <div className="bg-red-50 p-2 rounded-xl">
                                 <AlertCircle size={20} className="text-red-500" />
                             </div>
                             <div>
                                 <p className="text-xs text-red-800 font-semibold uppercase tracking-wider">Low Stock</p>
-                                <p className="font-mono text-xl font-bold text-red-900">{inventory.filter(i => i.stock_quantity <= 20).length} Items</p>
+                                <p className="font-mono text-xl font-bold text-red-900">{lowStockCount} Items</p>
                             </div>
                         </div>
                     </div>
-
                     <div className="relative w-full md:w-72">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input
                             type="text"
-                            placeholder="Search catalog..."
+                            placeholder="Search by name, SKU, category..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white transition-all text-sm font-medium"
@@ -158,12 +201,18 @@ export default function InventoryPage() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-white border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider">
-                                    <th className="p-4 font-semibold cursor-pointer hover:text-blue-600 flex items-center gap-1">Product Details <ArrowUpDown size={12} /></th>
+                                    <th className="p-4 font-semibold cursor-pointer hover:text-blue-600" onClick={() => handleSort('name')}>
+                                        <div className="flex items-center gap-1">Product Details <ArrowUpDown size={12} /></div>
+                                    </th>
                                     <th className="p-4 font-semibold">SKU</th>
                                     <th className="p-4 font-semibold">Category</th>
                                     <th className="p-4 font-semibold">Cost</th>
-                                    <th className="p-4 font-semibold">Retail Price</th>
-                                    <th className="p-4 font-semibold text-center">Stock</th>
+                                    <th className="p-4 font-semibold cursor-pointer hover:text-blue-600" onClick={() => handleSort('price')}>
+                                        <div className="flex items-center gap-1">Retail Price <ArrowUpDown size={12} /></div>
+                                    </th>
+                                    <th className="p-4 font-semibold text-center cursor-pointer hover:text-blue-600" onClick={() => handleSort('stock_quantity')}>
+                                        <div className="flex items-center justify-center gap-1">Stock <ArrowUpDown size={12} /></div>
+                                    </th>
                                     <th className="p-4 font-semibold text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -174,13 +223,11 @@ export default function InventoryPage() {
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0, x: -20 }}
-                                            transition={{ delay: i * 0.05 }}
+                                            transition={{ delay: i * 0.03 }}
                                             key={item.id}
                                             className="hover:bg-blue-50/20 transition-colors"
                                         >
-                                            <td className="p-4 font-semibold text-gray-800 text-sm">
-                                                {item.name}
-                                            </td>
+                                            <td className="p-4 font-semibold text-gray-800 text-sm">{item.name}</td>
                                             <td className="p-4">
                                                 <span className="font-mono text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded w-fit border border-gray-200 shadow-sm">{item.sku}</span>
                                             </td>
@@ -199,8 +246,20 @@ export default function InventoryPage() {
                                             </td>
                                             <td className="p-4 h-full">
                                                 <div className="flex items-center justify-end gap-2 text-gray-400">
-                                                    <button onClick={() => toast.info('Edit mode coming soon...')} className="p-2 hover:bg-blue-100 hover:text-blue-600 rounded-lg transition-colors"><Edit size={16} /></button>
-                                                    <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                                    <button
+                                                        onClick={() => openEditModal(item)}
+                                                        className="p-2 hover:bg-blue-100 hover:text-blue-600 rounded-lg transition-colors"
+                                                        title="Edit product"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(item.id, item.name)}
+                                                        className="p-2 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors"
+                                                        title="Delete product"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </motion.tr>
@@ -211,14 +270,15 @@ export default function InventoryPage() {
                     )}
                     {!isLoading && filteredInventory.length === 0 && (
                         <div className="p-8 text-center text-gray-500">
-                            No products found. Start by adding one.
+                            No products found. {searchTerm ? 'Try a different search.' : 'Start by adding one.'}
                         </div>
                     )}
                 </div>
-            </motion.div >
+            </motion.div>
 
+            {/* Add Product Modal */}
             <AnimatePresence>
-                {isModalOpen && (
+                {isAddModalOpen && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -231,67 +291,109 @@ export default function InventoryPage() {
                             exit={{ scale: 0.95, opacity: 0, y: 20 }}
                             className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-lg shadow-2xl relative"
                         >
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="absolute top-6 right-6 text-gray-400 hover:text-gray-800 transition-colors"
-                                type="button"
-                            >
+                            <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 text-gray-400 hover:text-gray-800 transition-colors" type="button">
                                 <X size={24} />
                             </button>
-
                             <h2 className="text-2xl font-bold font-poppins text-gray-900 mb-6">Add New Product</h2>
-
                             <form onSubmit={handleAddProduct} className="space-y-4">
                                 <div className="space-y-1">
-                                    <label className="text-sm font-semibold text-gray-700">Product Name</label>
+                                    <label className="text-sm font-semibold text-gray-700">Product Name *</label>
                                     <input required value={formName} onChange={e => setFormName(e.target.value)} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium" placeholder="E.g. Strawberry Yoghurt 500ml" />
                                 </div>
-
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <label className="text-sm font-semibold text-gray-700">SKU Code</label>
+                                        <label className="text-sm font-semibold text-gray-700">SKU Code *</label>
                                         <input required value={formSku} onChange={e => setFormSku(e.target.value)} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm uppercase" placeholder="YOG-500-ST" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-sm font-semibold text-gray-700">Category</label>
-                                        <select value={formCat} onChange={e => setFormCat(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium select-none cursor-pointer">
-                                            <option>Dairy</option>
-                                            <option>Hardware</option>
-                                            <option>Retail</option>
-                                            <option>Agro-processing</option>
-                                            <option>Other</option>
+                                        <select value={formCat} onChange={e => setFormCat(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium cursor-pointer">
+                                            {categories.map(c => <option key={c}>{c}</option>)}
                                         </select>
                                     </div>
                                 </div>
-
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-sm font-semibold text-gray-700">Cost Price (KSh)</label>
-                                        <input required value={formCost} onChange={e => setFormCost(Number(e.target.value))} type="number" min="0" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm" />
+                                        <input required value={formCost} onChange={e => setFormCost(Number(e.target.value))} type="number" min="0" step="0.01" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-sm font-semibold text-gray-700">Retail Price (KSh)</label>
-                                        <input required value={formPrice} onChange={e => setFormPrice(Number(e.target.value))} type="number" min="0" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm" />
+                                        <input required value={formPrice} onChange={e => setFormPrice(Number(e.target.value))} type="number" min="0" step="0.01" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
                                     </div>
                                 </div>
-
                                 <div className="space-y-1">
                                     <label className="text-sm font-semibold text-gray-700">Initial Stock Quantity</label>
-                                    <input required value={formStock} onChange={e => setFormStock(Number(e.target.value))} type="number" min="0" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm" />
+                                    <input required value={formStock} onChange={e => setFormStock(Number(e.target.value))} type="number" min="0" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
                                 </div>
-
-                                <motion.button
-                                    whileTap={{ scale: 0.98 }}
-                                    type="submit"
-                                    className="w-full py-4 mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 hover:shadow-blue-500/50 transition-all"
-                                >
-                                    Save Product to Catalog
+                                <motion.button whileTap={{ scale: 0.98 }} type="submit" className="w-full py-4 mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 hover:shadow-blue-500/50 transition-all">
+                                    <Save size={18} /> Save Product to Catalog
                                 </motion.button>
                             </form>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div >
+
+            {/* Edit Product Modal */}
+            <AnimatePresence>
+                {isEditModalOpen && editingProduct && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-lg shadow-2xl relative"
+                        >
+                            <button onClick={() => { setIsEditModalOpen(false); setEditingProduct(null); }} className="absolute top-6 right-6 text-gray-400 hover:text-gray-800 transition-colors" type="button">
+                                <X size={24} />
+                            </button>
+                            <h2 className="text-2xl font-bold font-poppins text-gray-900 mb-1">Edit Product</h2>
+                            <p className="text-gray-500 text-sm mb-6">Update details for <strong>{editingProduct.name}</strong></p>
+                            <form onSubmit={handleEditProduct} className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-sm font-semibold text-gray-700">Product Name</label>
+                                    <input required value={editingProduct.name} onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-semibold text-gray-700">SKU Code</label>
+                                        <input required value={editingProduct.sku} onChange={e => setEditingProduct({ ...editingProduct, sku: e.target.value })} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm uppercase" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-semibold text-gray-700">Category</label>
+                                        <select value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer">
+                                            {categories.map(c => <option key={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-semibold text-gray-700">Cost Price (KSh)</label>
+                                        <input required value={editingProduct.cost} onChange={e => setEditingProduct({ ...editingProduct, cost: e.target.value })} type="number" min="0" step="0.01" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-semibold text-gray-700">Retail Price (KSh)</label>
+                                        <input required value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: e.target.value })} type="number" min="0" step="0.01" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-sm font-semibold text-gray-700">Stock Quantity</label>
+                                    <input required value={editingProduct.stock_quantity} onChange={e => setEditingProduct({ ...editingProduct, stock_quantity: Number(e.target.value) })} type="number" min="0" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+                                </div>
+                                <motion.button whileTap={{ scale: 0.98 }} type="submit" className="w-full py-4 mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 hover:shadow-blue-500/50 transition-all">
+                                    <Save size={18} /> Update Product
+                                </motion.button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }

@@ -45,10 +45,16 @@ body {
   overflow-x: hidden;
 }
 
+/* Typography helpers */
+.font-poppins { font-family: var(--font-poppins); }
+.font-inter { font-family: var(--font-inter); }
+.font-mono { font-family: var(--font-mono); }
+
 .gradient-text {
   background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .glass-card {
@@ -63,21 +69,74 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Base styles for scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Custom Scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-
-::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
 }
-
-::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
+}
+
+/* Global scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Login page animations */
+@keyframes blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(20px, -30px) scale(1.1); }
+  66% { transform: translate(-15px, 15px) scale(0.95); }
+}
+@keyframes gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-blob { animation: blob 7s infinite; }
+.animate-gradient { animation: gradient 15s ease infinite; background-size: 200% 200%; }
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-4000 { animation-delay: 4s; }
+
+/* Margin for long content offset */
+.ml-15 { margin-left: 3.75rem; }
+
+/* Print styles for PDF export */
+@media print {
+  body * { visibility: hidden; }
+  
+  #printable-report, #printable-report * { visibility: visible; }
+  #printable-report { 
+    position: absolute; 
+    left: 0; top: 0; 
+    width: 100%; 
+    padding: 20px;
+    background: white !important;
+  }
+  
+  #receipt, #receipt * {
+    visibility: visible;
+  }
+  #receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* standard thermal printer size */
+    margin: 0;
+    padding: 10px;
+    background: white !important;
+    color: black !important;
+    font-size: 12px;
+  }
+  
+  .no-print { display: none !important; }
 }

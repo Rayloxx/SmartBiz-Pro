@@ -6,13 +6,14 @@ import { Settings, Save, Store, Mail, Phone, MapPin, Banknote, Bell, Moon, Link 
 import { toast, Toaster } from 'sonner';
 import axios from 'axios';
 import { useTheme } from '@/components/ThemeProvider';
-
-const API_URL = 'http://localhost:5000/api';
+import { API_URL } from '@/config';
 
 export default function SettingsPage() {
     const { theme, toggleTheme } = useTheme();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isEtimsConnecting, setIsEtimsConnecting] = useState(false);
+    const [isMpesaTesting, setIsMpesaTesting] = useState(false);
 
     // Form State
     const [settings, setSettings] = useState({
@@ -58,6 +59,16 @@ export default function SettingsPage() {
         }
     };
 
+    const handleResetPassword = async () => {
+        const toastId = toast.loading('Sending reset link...');
+        try {
+            const res = await axios.post(`${API_URL}/settings/reset-password`);
+            toast.success(res.data.message, { id: toastId });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to send reset link', { id: toastId });
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -65,6 +76,43 @@ export default function SettingsPage() {
             </div>
         );
     }
+
+    const handleEtimsConnect = async () => {
+        setIsEtimsConnecting(true);
+        const toastId = toast.loading('Connecting to eTIMS secure gateway...');
+        try {
+            const res = await axios.post(`${API_URL}/integrations/etims/connect`, {
+                kra_pin: settings.tax_pin || 'P000000000Z',
+                branch_code: '00'
+            });
+            toast.success(res.data.message || 'eTIMS linked successfully', { id: toastId });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to connect eTIMS', { id: toastId });
+        } finally {
+            setIsEtimsConnecting(false);
+        }
+    };
+
+    const handleMpesaClick = async () => {
+        const phone = window.prompt("Enter phone number for M-PESA test (e.g. 0712345678):");
+        if (!phone) return;
+        const amount = window.prompt("Enter test amount (e.g. 1):");
+        if (!amount) return;
+
+        setIsMpesaTesting(true);
+        const toastId = toast.loading('Initiating STK Push...');
+        try {
+            const res = await axios.post(`${API_URL}/integrations/mpesa/stkpush`, {
+                amount,
+                phone_number: phone
+            });
+            toast.success(res.data.message || 'STK Push sent successfully!', { id: toastId });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to initiate STK Push', { id: toastId });
+        } finally {
+            setIsMpesaTesting(false);
+        }
+    };
 
     return (
         <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8 font-inter">
@@ -223,10 +271,11 @@ export default function SettingsPage() {
                                     <p className="text-xs text-green-700 dark:text-green-500 mt-1">Status: Active</p>
                                 </div>
                                 <button
-                                    onClick={() => toast.info('M-PESA Configuration interface is and admin-only gateway.')}
-                                    className="px-3 py-1 bg-white dark:bg-slate-800 border border-green-200 dark:border-green-800 text-xs font-bold text-green-600 rounded-lg shadow-sm hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
+                                    onClick={handleMpesaClick}
+                                    disabled={isMpesaTesting}
+                                    className="px-3 py-1 bg-white dark:bg-slate-800 border border-green-200 dark:border-green-800 text-xs font-bold text-green-600 rounded-lg shadow-sm hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50"
                                 >
-                                    Configure
+                                    {isMpesaTesting ? 'Testing...' : 'Test STK Push'}
                                 </button>
                             </div>
 
@@ -236,10 +285,11 @@ export default function SettingsPage() {
                                     <p className="text-xs text-gray-500 mt-1">Status: Disconnected</p>
                                 </div>
                                 <button
-                                    onClick={() => toast.loading('Connecting to eTIMS secure gateway...')}
-                                    className="px-3 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 text-xs font-bold text-blue-600 rounded-lg shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                    onClick={handleEtimsConnect}
+                                    disabled={isEtimsConnecting}
+                                    className="px-3 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 text-xs font-bold text-blue-600 rounded-lg shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
                                 >
-                                    Connect
+                                    {isEtimsConnecting ? 'Connecting...' : 'Connect'}
                                 </button>
                             </div>
                         </div>
@@ -291,7 +341,7 @@ export default function SettingsPage() {
 
                             <div className="pt-2">
                                 <button
-                                    onClick={() => toast.info('Check your admin email for password reset link.')}
+                                    onClick={handleResetPassword}
                                     className="w-full py-2 bg-gray-50 dark:bg-slate-900/50 text-gray-600 dark:text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-gray-100 dark:border-slate-700 rounded-xl text-sm font-semibold transition-colors"
                                 >
                                     Change Admin Password

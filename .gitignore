@@ -24,3 +24,9 @@ Thumbs.db
 # Config
 next-env.d.ts
 *.tsbuildinfo
+
+# Office / Temp
+~$*
+*.docx
+*.pptx
+*.pdf
